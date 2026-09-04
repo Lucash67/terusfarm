@@ -8,7 +8,7 @@ export const SITE = {
   title: "Terus Farm | Inteligência para Carcinicultura",
   description:
     "Transforme dados da sua fazenda de camarão em inteligência para produção, gestão e tomada de decisão com o Terus Farm.",
-  url: "https://terusfarm.com.br",
+  url: "https://terusfarm.vercel.app",
   tagline: "Intelligence OS para carcinicultura.",
 } as const;
 
