@@ -5,7 +5,13 @@ export type AnalyticsEvent =
   | "whatsapp_click"
   | "demo_click"
   | "ask_terus_cta_click"
-  | "aquafarm_case_view";
+  | "aquafarm_case_view"
+  | "diagnostic_result_view"
+  | "diagnostic_action_plan_view"
+  | "diagnostic_share"
+  | "diagnostic_download"
+  | "diagnostic_demo_click"
+  | "diagnostic_whatsapp_click";
 
 type AnalyticsPayload = Record<string, string | number | boolean | null | undefined>;
 

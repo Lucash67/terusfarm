@@ -1,6 +1,10 @@
 import { z } from "zod";
 
+import type { CampaignAttribution } from "@/config/campaign";
+
+import type { LeadScoreResult } from "./leadScoring";
 import type { DiagnosticReport } from "./raiox";
+import { buildDiagnosticCrmPayload } from "./raioxPayload";
 
 export const pondOptions = ["1–5", "6–20", "21–50", "+50"] as const;
 export const cycleOptions = ["ERP", "Planilha", "BI", "Outro"] as const;
@@ -40,22 +44,33 @@ export type DiagnosticSubmitResult =
   | { ok: true }
   | { ok: false; error: string };
 
+export type DiagnosticSubmitInput = {
+  answers: DiagnosticPayload;
+  report: DiagnosticReport;
+  commercial: LeadScoreResult;
+  source?: CampaignAttribution;
+  intent?: "complete" | "demo" | "whatsapp" | "share";
+};
+
 /**
  * Ponto único de submit. Trocar o corpo desta função quando a API/CRM existir.
  */
-export async function submitFarmDiagnostic(
-  payload: DiagnosticPayload,
-  report?: DiagnosticReport,
-): Promise<DiagnosticSubmitResult> {
+export async function submitFarmDiagnostic(input: DiagnosticSubmitInput): Promise<DiagnosticSubmitResult> {
+  const crmPayload = buildDiagnosticCrmPayload(input);
+
   if (process.env.NODE_ENV !== "production") {
-    console.info("[raio-x] payload", payload);
-    if (report) console.info("[raio-x] report", report.id, report.archetype.title, report.maturity.score);
+    console.info("[raio-x] crm", {
+      diagnosticId: crmPayload.diagnosticId,
+      profileCode: crmPayload.profileCode,
+      leadClass: crmPayload.commercial.leadClass,
+      intent: crmPayload.intent,
+    });
   }
 
   const endpoint = process.env.NEXT_PUBLIC_DIAGNOSTIC_ENDPOINT;
 
   if (!endpoint) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await new Promise((resolve) => setTimeout(resolve, input.intent === "complete" ? 400 : 0));
     return { ok: true };
   }
 
@@ -63,21 +78,7 @@ export async function submitFarmDiagnostic(
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source: "terus-farm-landing",
-        event: "Festival do Camarão · Aracati 2026",
-        ...payload,
-        report: report
-          ? {
-              id: report.id,
-              archetype: report.archetype.title,
-              score: report.maturity.score,
-              band: report.maturity.label,
-              askQuestion: report.askQuestion,
-              thisWeek: report.thisWeek,
-            }
-          : undefined,
-      }),
+      body: JSON.stringify(crmPayload),
     });
 
     if (!response.ok) {

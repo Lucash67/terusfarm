@@ -1,6 +1,10 @@
-import { buildWhatsAppUrl } from "@/config/contact";
+import { SITE } from "@/data/farm";
 
 import type { DiagnosticPayload } from "./diagnostic";
+import { buildDiagnosticId, buildProfileCode } from "./raioxIds";
+import { buildActionPlan, buildFarmEntry, buildNextStepCopy } from "./raioxPlan";
+import type { EvolutionPriority, FarmEntryLine } from "./raioxPlan";
+import { buildRaioxWhatsAppUrls } from "./raioxWhatsapp";
 
 export type MaturityBand = "fragmentada" | "construcao" | "parcial" | "pronta";
 
@@ -10,6 +14,8 @@ type Pain = DiagnosticPayload["difficulty"];
 
 export type DiagnosticReport = {
   id: string;
+  profileCode: string;
+  diagnosticId: string;
   firstName: string;
   farmName: string;
   city: string;
@@ -36,24 +42,21 @@ export type DiagnosticReport = {
   hopClose: string;
   blindSpots: { title: string; text: string }[];
   unlock: { module: string; value: string }[];
+  actionPlan: EvolutionPriority[];
+  farmEntry: FarmEntryLine[];
   askQuestion: string;
   thisWeek: string;
   nextMove: string;
+  nextStep: { headline: string; text: string };
   localNote: string | null;
+  shareUrl: string;
   whatsappUrl: string;
+  whatsappDemoUrl: string;
+  whatsappSendUrl: string;
+  whatsappTalkUrl: string;
 };
 
-const POND_CODE = { "1–5": "A", "6–20": "B", "21–50": "C", "+50": "D" } as const;
-const TRACK_CODE = { ERP: "ER", Planilha: "PL", BI: "BI", Outro: "OT" } as const;
-const PAIN_CODE = {
-  Produção: "PR",
-  Custos: "CU",
-  Indicadores: "IN",
-  Comercial: "CO",
-  "Dados espalhados": "DS",
-  Alertas: "AL",
-  Outra: "OU",
-} as const;
+export type MaturityBreakdown = DiagnosticReport["maturity"];
 
 const CAPTURE: Record<Track, number> = {
   Outro: 24,
@@ -562,7 +565,9 @@ function nextMove(payload: DiagnosticPayload, farmName: string) {
   return `O próximo passo é tirar a operação da conversa solta e dar a ${farmName} um lugar onde dado vire decisão.`;
 }
 
-export function buildRaioxReport(payload: DiagnosticPayload): DiagnosticReport {
+export function computeMaturity(
+  payload: Pick<DiagnosticPayload, "ponds" | "cycleTracking" | "difficulty">,
+): MaturityBreakdown {
   const capture = CAPTURE[payload.cycleTracking];
   const connection = clamp(capture - SCALE_DRAG[payload.ponds] + (payload.cycleTracking === "BI" ? 4 : 0), 18, 84);
   const decision = clamp(
@@ -572,26 +577,42 @@ export function buildRaioxReport(payload: DiagnosticPayload): DiagnosticReport {
   );
   const score = clamp(capture * 0.34 + connection * 0.28 + decision * 0.38, 24, 82);
   const { band, label } = bandFor(score);
+  return {
+    score,
+    band,
+    label,
+    axes: {
+      capture: { score: capture, label: axisLabel(capture) },
+      connection: { score: connection, label: axisLabel(connection) },
+      decision: { score: decision, label: axisLabel(decision) },
+    },
+  };
+}
+
+export function buildRaioxReport(payload: DiagnosticPayload, options?: { uniqueSuffix?: string }): DiagnosticReport {
+  const maturity = computeMaturity(payload);
   const firstName = firstNameFrom(payload.name);
   const farmName = payload.farm.trim();
-  const id = `RX-${POND_CODE[payload.ponds]}${TRACK_CODE[payload.cycleTracking]}-${PAIN_CODE[payload.difficulty]}`;
+  const profileCode = buildProfileCode(payload.ponds, payload.cycleTracking, payload.difficulty);
+  const diagnosticId = buildDiagnosticId(profileCode, options?.uniqueSuffix);
   const profile = archetype(payload.ponds, payload.cycleTracking, payload.difficulty);
   const hops = HOPS[payload.cycleTracking];
   const note = localNote(payload.city);
   const week = THIS_WEEK[payload.cycleTracking][payload.difficulty];
-
-  const whatsappMessage = [
-    `Olá! Fiz o Raio-X da Terus Farm (${id}).`,
-    `Fazenda: ${farmName} · ${payload.city}`,
-    `Perfil: ${profile.title}`,
-    `Escala: ${payload.ponds} viveiros · Acompanhamento: ${payload.cycleTracking} · Pressão: ${payload.difficulty}`,
-    `Maturidade de gestão da informação: ${score}/100 (${label}).`,
-    `Nesta semana: ${week}`,
-    "Quero ver como o Terus Farm se aplica à minha operação.",
-  ].join("\n");
+  const whatsapp = buildRaioxWhatsAppUrls({
+    diagnosticId,
+    farmName,
+    city: payload.city.trim(),
+    profileName: profile.title,
+    maturityScore: maturity.score,
+    maturityLabel: maturity.label,
+    mainPain: payload.difficulty,
+  });
 
   return {
-    id,
+    id: diagnosticId,
+    profileCode,
+    diagnosticId,
     firstName,
     farmName,
     city: payload.city.trim(),
@@ -599,26 +620,24 @@ export function buildRaioxReport(payload: DiagnosticPayload): DiagnosticReport {
     cycleTracking: payload.cycleTracking,
     difficulty: payload.difficulty,
     archetype: profile,
-    maturity: {
-      score,
-      band,
-      label,
-      axes: {
-        capture: { score: capture, label: axisLabel(capture) },
-        connection: { score: connection, label: axisLabel(connection) },
-        decision: { score: decision, label: axisLabel(decision) },
-      },
-    },
+    maturity,
     reading: reading(payload, firstName, farmName),
     pressure: pressure(payload),
     hops,
     hopClose: HOP_CLOSE[payload.cycleTracking],
     blindSpots: blindSpots(payload),
     unlock: unlock(payload),
+    actionPlan: buildActionPlan(payload),
+    farmEntry: buildFarmEntry(payload),
     askQuestion: askQuestion(payload),
     thisWeek: week,
     nextMove: nextMove(payload, farmName),
+    nextStep: buildNextStepCopy(farmName, payload.cycleTracking),
     localNote: note,
-    whatsappUrl: buildWhatsAppUrl(whatsappMessage),
+    shareUrl: SITE.url,
+    whatsappUrl: whatsapp.demo,
+    whatsappDemoUrl: whatsapp.demo,
+    whatsappSendUrl: whatsapp.send,
+    whatsappTalkUrl: whatsapp.talk,
   };
 }

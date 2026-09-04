@@ -154,6 +154,25 @@ export function IconCalendar(props: IconProps) {
   );
 }
 
+export function IconShare(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="18" cy="5" r="2.4" />
+      <circle cx="6" cy="12" r="2.4" />
+      <circle cx="18" cy="19" r="2.4" />
+      <path d="M8.2 13.2l7.6 4.2M15.8 6.6l-7.6 4.2" />
+    </Icon>
+  );
+}
+
+export function IconDownload(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 4v10M8 10l4 4 4-4M5 19h14" />
+    </Icon>
+  );
+}
+
 export function IconCheck(props: IconProps) {
   return (
     <Icon {...props}>

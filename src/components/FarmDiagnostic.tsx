@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DiagnosticResult } from "@/components/DiagnosticResult";
 import { Reveal } from "@/components/motion/Reveal";
@@ -13,6 +13,7 @@ import {
   IconPin,
   IconUser,
 } from "@/components/ui/Icons";
+import { readCampaignAttribution, type CampaignAttribution } from "@/config/campaign";
 import { COPY } from "@/data/farm";
 import { track } from "@/lib/analytics";
 import {
@@ -23,13 +24,19 @@ import {
   submitFarmDiagnostic,
   type DiagnosticPayload,
 } from "@/lib/diagnostic";
+import { applyLeadAction, scoreLead, type LeadScoreResult } from "@/lib/leadScoring";
 import { canAnimate } from "@/lib/motion";
 import { buildRaioxReport, type DiagnosticReport } from "@/lib/raiox";
 
 type Step = 0 | 1 | 2 | 3;
 type Status = "idle" | "submitting" | "analyzing" | "success" | "error";
 
-const STORAGE_KEY = "terus-farm-raiox-v2";
+const STORAGE_KEY = "terus-farm-raiox-v3";
+
+type StoredRaiox = {
+  report: DiagnosticReport;
+  answers: DiagnosticPayload;
+};
 
 const INITIAL: DiagnosticPayload = {
   ponds: "6–20",
@@ -42,20 +49,36 @@ const INITIAL: DiagnosticPayload = {
   email: "",
 };
 
+function analyticsContext(report: DiagnosticReport, commercial: LeadScoreResult) {
+  return {
+    diagnosticId: report.diagnosticId,
+    profileCode: report.profileCode,
+    leadClass: commercial.leadClass,
+  };
+}
+
 export function FarmDiagnostic() {
   const [step, setStep] = useState<Step>(0);
   const [form, setForm] = useState(INITIAL);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [report, setReport] = useState<DiagnosticReport | null>(null);
+  const [answers, setAnswers] = useState<DiagnosticPayload | null>(null);
+  const [commercial, setCommercial] = useState<LeadScoreResult | null>(null);
+  const [source, setSource] = useState<CampaignAttribution>(() => readCampaignAttribution(""));
+  const viewed = useRef(false);
+  const planViewed = useRef(false);
 
   useEffect(() => {
+    setSource(readCampaignAttribution(window.location.search));
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
       if (!raw) return;
-      const saved = JSON.parse(raw) as DiagnosticReport;
-      if (saved?.id && saved.farmName) {
-        setReport(saved);
+      const saved = JSON.parse(raw) as StoredRaiox;
+      if (saved?.report?.diagnosticId && saved.report.actionPlan && saved.answers?.farm) {
+        setReport(saved.report);
+        setAnswers(saved.answers);
+        setCommercial(scoreLead({ ...saved.answers, completed: true }));
         setStatus("success");
       }
     } catch {
@@ -79,6 +102,10 @@ export function FarmDiagnostic() {
     setStep(next);
   };
 
+  const persist = (nextReport: DiagnosticReport, nextAnswers: DiagnosticPayload) => {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ report: nextReport, answers: nextAnswers }));
+  };
+
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const parsed = diagnosticSchema.safeParse(form);
@@ -88,23 +115,34 @@ export function FarmDiagnostic() {
     }
 
     const nextReport = buildRaioxReport(parsed.data);
+    const nextCommercial = scoreLead({ ...parsed.data, completed: true });
+    viewed.current = false;
+    planViewed.current = false;
     setError("");
     setStatus("analyzing");
     setReport(nextReport);
+    setAnswers(parsed.data);
+    setCommercial(nextCommercial);
 
     const wait = canAnimate() ? 1600 : 0;
     const [, result] = await Promise.all([
       new Promise((resolve) => setTimeout(resolve, wait)),
-      submitFarmDiagnostic(parsed.data, nextReport),
+      submitFarmDiagnostic({
+        answers: parsed.data,
+        report: nextReport,
+        commercial: nextCommercial,
+        source,
+        intent: "complete",
+      }),
     ]);
 
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(nextReport));
+    persist(nextReport, parsed.data);
     setStatus("success");
     track("raiox_complete", {
       ponds: parsed.data.ponds,
       cycleTracking: parsed.data.cycleTracking,
       difficulty: parsed.data.difficulty,
-      id: nextReport.id,
+      ...analyticsContext(nextReport, nextCommercial),
       score: nextReport.maturity.score,
     });
 
@@ -116,11 +154,65 @@ export function FarmDiagnostic() {
   const reset = () => {
     sessionStorage.removeItem(STORAGE_KEY);
     setReport(null);
+    setAnswers(null);
+    setCommercial(null);
     setStatus("idle");
     setStep(0);
     setError("");
     setForm(INITIAL);
+    viewed.current = false;
+    planViewed.current = false;
   };
+
+  const onViewed = useCallback(() => {
+    if (!report || !commercial || viewed.current) return;
+    viewed.current = true;
+    track("diagnostic_result_view", analyticsContext(report, commercial));
+  }, [report, commercial]);
+
+  const onActionPlanView = useCallback(() => {
+    if (!report || !commercial || planViewed.current) return;
+    planViewed.current = true;
+    track("diagnostic_action_plan_view", analyticsContext(report, commercial));
+  }, [report, commercial]);
+
+  const registerIntent = useCallback(
+    (intent: "demo" | "whatsapp") => {
+      if (!report || !answers || !commercial) return;
+      const next = applyLeadAction(commercial, answers, intent);
+      setCommercial(next);
+      track(intent === "demo" ? "diagnostic_demo_click" : "diagnostic_whatsapp_click", analyticsContext(report, next));
+      track(intent === "demo" ? "demo_click" : "whatsapp_click", {
+        source: "raiox",
+        ...analyticsContext(report, next),
+      });
+      void submitFarmDiagnostic({
+        answers,
+        report,
+        commercial: next,
+        source,
+        intent,
+      });
+    },
+    [answers, commercial, report, source],
+  );
+
+  const onShareResult = useCallback(
+    (mode: "shared" | "downloaded") => {
+      if (!report || !commercial || !answers) return;
+      track(mode === "shared" ? "diagnostic_share" : "diagnostic_download", analyticsContext(report, commercial));
+      void submitFarmDiagnostic({
+        answers,
+        report,
+        commercial,
+        source,
+        intent: "share",
+      });
+    },
+    [answers, commercial, report, source],
+  );
+
+  const showingForm = status === "idle" || status === "submitting" || status === "error";
 
   return (
     <section id="raio-x" className="tf-section">
@@ -132,119 +224,129 @@ export function FarmDiagnostic() {
           <p className="mt-3 text-sm text-text-tertiary">{COPY.diagnostic.promise}</p>
         </Reveal>
 
-        <Reveal variant="scale" className="mt-7">
-          <div className="tf-card p-4 md:p-6">
-            {status === "analyzing" && report ? <AnalyzingState report={report} /> : null}
-            {status === "success" && report ? (
-              <>
-                {error ? (
-                  <p className="mb-4 text-sm text-status-warning">
-                    Diagnóstico pronto. Não foi possível registrar agora — siga pelo WhatsApp.
-                  </p>
-                ) : null}
-                <DiagnosticResult report={report} onReset={reset} />
-              </>
+        {status === "success" && report && commercial ? (
+          <div className="mt-7">
+            {error ? (
+              <p className="mb-4 text-sm text-status-warning">
+                Diagnóstico pronto. Não foi possível registrar agora — siga pelo WhatsApp.
+              </p>
             ) : null}
-
-            {status === "idle" || status === "submitting" || status === "error" ? (
-              <>
-                <div className="mb-5 flex items-center justify-between gap-4">
-                  <p className="text-xs uppercase tracking-[0.14em] text-text-tertiary">
-                    Etapa {step + 1} de 4
-                  </p>
-                  <p className="text-xs text-text-tertiary">{COPY.diagnostic.microcopy}</p>
-                </div>
-                <div className="progress-rail mb-6">
-                  <span style={{ width: `${progress}%` }} />
-                </div>
-
-                {step === 0 ? (
-                  <ChoiceStep
-                    title="Quantos viveiros?"
-                    options={[...pondOptions]}
-                    value={form.ponds}
-                    onSelect={(value) => nextFromChoice({ ponds: value as DiagnosticPayload["ponds"] }, 1)}
-                  />
-                ) : null}
-
-                {step === 1 ? (
-                  <ChoiceStep
-                    title="Como vocês acompanham os ciclos hoje?"
-                    options={[...cycleOptions]}
-                    value={form.cycleTracking}
-                    onSelect={(value) =>
-                      nextFromChoice({ cycleTracking: value as DiagnosticPayload["cycleTracking"] }, 2)
-                    }
-                    onBack={() => setStep(0)}
-                  />
-                ) : null}
-
-                {step === 2 ? (
-                  <ChoiceStep
-                    title="Qual é a maior dificuldade hoje?"
-                    options={[...difficultyOptions]}
-                    value={form.difficulty}
-                    onSelect={(value) =>
-                      nextFromChoice({ difficulty: value as DiagnosticPayload["difficulty"] }, 3)
-                    }
-                    onBack={() => setStep(1)}
-                  />
-                ) : null}
-
-                {step === 3 ? (
-                  <form onSubmit={onSubmit} className="grid gap-3">
-                    <Field
-                      icon={<IconUser />}
-                      label="Nome completo"
-                      value={form.name}
-                      onChange={(value) => setForm({ ...form, name: value })}
-                      autoComplete="name"
-                    />
-                    <Field
-                      icon={<IconFarm />}
-                      label="Nome da fazenda/empresa"
-                      value={form.farm}
-                      onChange={(value) => setForm({ ...form, farm: value })}
-                    />
-                    <Field
-                      icon={<IconPhone />}
-                      label="WhatsApp"
-                      value={form.whatsapp}
-                      onChange={(value) => setForm({ ...form, whatsapp: value })}
-                      type="tel"
-                      inputMode="tel"
-                      autoComplete="tel"
-                    />
-                    <Field
-                      icon={<IconPin />}
-                      label="Cidade"
-                      value={form.city}
-                      onChange={(value) => setForm({ ...form, city: value })}
-                      autoComplete="address-level2"
-                    />
-                    <Field
-                      icon={<IconMail />}
-                      label="E-mail (opcional)"
-                      value={form.email || ""}
-                      onChange={(value) => setForm({ ...form, email: value })}
-                      type="email"
-                      inputMode="email"
-                      autoComplete="email"
-                    />
-                    {error ? <p className="text-sm text-status-error">{error}</p> : null}
-                    <Button type="submit" loading={status === "submitting"}>
-                      {COPY.diagnostic.cta}
-                      <IconArrow />
-                    </Button>
-                    <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>
-                      Voltar
-                    </button>
-                  </form>
-                ) : null}
-              </>
-            ) : null}
+            <DiagnosticResult
+              report={report}
+              onReset={reset}
+              onViewed={onViewed}
+              onActionPlanView={onActionPlanView}
+              onDemo={() => registerIntent("demo")}
+              onSend={() => registerIntent("whatsapp")}
+              onTalk={() => registerIntent("whatsapp")}
+              onShareResult={onShareResult}
+            />
           </div>
-        </Reveal>
+        ) : (
+          <Reveal variant="scale" className="mt-7">
+            <div className="tf-card p-4 md:p-6">
+              {status === "analyzing" && report ? <AnalyzingState report={report} /> : null}
+
+              {showingForm ? (
+                <>
+                  <div className="mb-5 flex items-center justify-between gap-4">
+                    <p className="text-xs uppercase tracking-[0.14em] text-text-tertiary">
+                      Etapa {step + 1} de 4
+                    </p>
+                    <p className="text-xs text-text-tertiary">{COPY.diagnostic.microcopy}</p>
+                  </div>
+                  <div className="progress-rail mb-6">
+                    <span style={{ width: `${progress}%` }} />
+                  </div>
+
+                  {step === 0 ? (
+                    <ChoiceStep
+                      title="Quantos viveiros?"
+                      options={[...pondOptions]}
+                      value={form.ponds}
+                      onSelect={(value) => nextFromChoice({ ponds: value as DiagnosticPayload["ponds"] }, 1)}
+                    />
+                  ) : null}
+
+                  {step === 1 ? (
+                    <ChoiceStep
+                      title="Como vocês acompanham os ciclos hoje?"
+                      options={[...cycleOptions]}
+                      value={form.cycleTracking}
+                      onSelect={(value) =>
+                        nextFromChoice({ cycleTracking: value as DiagnosticPayload["cycleTracking"] }, 2)
+                      }
+                      onBack={() => setStep(0)}
+                    />
+                  ) : null}
+
+                  {step === 2 ? (
+                    <ChoiceStep
+                      title="Qual é a maior dificuldade hoje?"
+                      options={[...difficultyOptions]}
+                      value={form.difficulty}
+                      onSelect={(value) =>
+                        nextFromChoice({ difficulty: value as DiagnosticPayload["difficulty"] }, 3)
+                      }
+                      onBack={() => setStep(1)}
+                    />
+                  ) : null}
+
+                  {step === 3 ? (
+                    <form onSubmit={onSubmit} className="grid gap-3">
+                      <Field
+                        icon={<IconUser />}
+                        label="Nome completo"
+                        value={form.name}
+                        onChange={(value) => setForm({ ...form, name: value })}
+                        autoComplete="name"
+                      />
+                      <Field
+                        icon={<IconFarm />}
+                        label="Nome da fazenda/empresa"
+                        value={form.farm}
+                        onChange={(value) => setForm({ ...form, farm: value })}
+                      />
+                      <Field
+                        icon={<IconPhone />}
+                        label="WhatsApp"
+                        value={form.whatsapp}
+                        onChange={(value) => setForm({ ...form, whatsapp: value })}
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                      />
+                      <Field
+                        icon={<IconPin />}
+                        label="Cidade"
+                        value={form.city}
+                        onChange={(value) => setForm({ ...form, city: value })}
+                        autoComplete="address-level2"
+                      />
+                      <Field
+                        icon={<IconMail />}
+                        label="E-mail (opcional)"
+                        value={form.email || ""}
+                        onChange={(value) => setForm({ ...form, email: value })}
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                      />
+                      {error ? <p className="text-sm text-status-error">{error}</p> : null}
+                      <Button type="submit" loading={status === "submitting"}>
+                        {COPY.diagnostic.cta}
+                        <IconArrow />
+                      </Button>
+                      <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>
+                        Voltar
+                      </button>
+                    </form>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          </Reveal>
+        )}
       </div>
     </section>
   );
@@ -260,6 +362,7 @@ function AnalyzingState({ report }: { report: DiagnosticReport }) {
         <li>Fonte · {report.cycleTracking}</li>
         <li>Pressão · {report.difficulty}</li>
         <li>Cruzando captura, conexão e decisão</li>
+        <li>Priorizando o plano de evolução</li>
       </ul>
     </div>
   );
