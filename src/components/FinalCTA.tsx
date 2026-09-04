@@ -1,6 +1,7 @@
 "use client";
 
 import { PondMap } from "@/components/backgrounds/PondMap";
+import { BrandLogo } from "@/components/layout/BrandLogo";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { IconCalendar, IconChat } from "@/components/ui/Icons";
@@ -57,9 +58,7 @@ export function FinalCTA() {
 
         <footer className="mt-10 flex flex-col items-start justify-between gap-4 border-t border-white/5 pt-6 sm:flex-row sm:items-center">
           <div>
-            <p className="logo-mark">
-              TERUS <span>FARM</span>
-            </p>
+            <BrandLogo size="footer" />
             <p className="mt-2 text-sm text-text-tertiary">{SITE.tagline}</p>
           </div>
           <p className="text-sm text-text-tertiary">Terus Tec.</p>

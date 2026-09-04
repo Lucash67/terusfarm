@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { BrandLogo } from "@/components/layout/BrandLogo";
 import { Button } from "@/components/ui/Button";
 import { IconClose, IconMenu } from "@/components/ui/Icons";
 import { COPY } from "@/data/farm";
@@ -22,8 +23,8 @@ export function Navbar() {
   return (
     <header className={cn("navbar tf-glass", scrolled && "is-scrolled")}>
       <div className="tf-container navbar-inner">
-        <a href="#topo" className="logo-mark" aria-label="Terus Farm">
-          TERUS <span>FARM</span>
+        <a href="#topo" className="brand-link" aria-label="Terus Farm">
+          <BrandLogo size="nav" priority />
         </a>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="Seções">
