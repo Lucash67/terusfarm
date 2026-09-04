@@ -80,7 +80,8 @@ export const COPY = {
     headline: "Da fazenda real para decisões reais.",
     text: "O Terus Farm já está sendo aplicado sobre uma operação real de carcinicultura, conectando dados da produção à inteligência de negócio.",
     identity: "Aquafarm — Cliente Terus Farm",
-    cta: "Ver como isso se aplica à sua fazenda",
+    signature: "Tecnologia construída em cima da realidade do campo.",
+    cta: "Ver como o Terus Farm se aplica à sua fazenda",
   },
   how: {
     headline: "Dados da fazenda viram decisão.",
@@ -154,17 +155,17 @@ export const DEMO_COCKPIT = {
 export const AQUAFARM_STATS = {
   showOperationStats: true,
   items: [
-    { value: "120 ha", label: "área produtiva" },
-    { value: "24", label: "viveiros" },
-    { value: "10+", label: "anos" },
-    { value: "3", label: "ciclos/ano" },
+    { value: "120 ha", label: "Área produtiva" },
+    { value: "24", label: "Viveiros em operação" },
+    { value: "10+", label: "Anos de carcinicultura" },
+    { value: "3", label: "Ciclos/ano" },
   ],
 } as const;
 
 /**
  * Slots de fotografia real.
  * Coloque os arquivos em public/aquafarm/ com estes nomes.
- * Se o arquivo não existir, a UI usa o mapa técnico de viveiros.
+ * Se o arquivo não existir, o case usa um still fotográfico — nunca o mapa abstrato.
  */
 export const AQUAFARM_ASSETS = {
   heroAerial: "/aquafarm/hero-aerial.webp",
