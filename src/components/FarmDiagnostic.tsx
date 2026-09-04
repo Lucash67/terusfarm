@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { DiagnosticResult } from "@/components/DiagnosticResult";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import {
   IconArrow,
-  IconCheck,
   IconFarm,
   IconMail,
   IconPhone,
@@ -23,9 +23,13 @@ import {
   submitFarmDiagnostic,
   type DiagnosticPayload,
 } from "@/lib/diagnostic";
+import { canAnimate } from "@/lib/motion";
+import { buildRaioxReport, type DiagnosticReport } from "@/lib/raiox";
 
 type Step = 0 | 1 | 2 | 3;
-type Status = "idle" | "submitting" | "success" | "error";
+type Status = "idle" | "submitting" | "analyzing" | "success" | "error";
+
+const STORAGE_KEY = "terus-farm-raiox-v2";
 
 const INITIAL: DiagnosticPayload = {
   ponds: "6–20",
@@ -43,6 +47,29 @@ export function FarmDiagnostic() {
   const [form, setForm] = useState(INITIAL);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
+  const [report, setReport] = useState<DiagnosticReport | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as DiagnosticReport;
+      if (saved?.id && saved.farmName) {
+        setReport(saved);
+        setStatus("success");
+      }
+    } catch {
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status !== "analyzing" && status !== "success") return;
+    document.getElementById("raio-x")?.scrollIntoView({
+      behavior: canAnimate() ? "smooth" : "auto",
+      block: "start",
+    });
+  }, [status]);
 
   const progress = useMemo(() => ((step + 1) / 4) * 100, [step]);
 
@@ -60,23 +87,45 @@ export function FarmDiagnostic() {
       return;
     }
 
-    setStatus("submitting");
+    const nextReport = buildRaioxReport(parsed.data);
     setError("");
-    const result = await submitFarmDiagnostic(parsed.data);
-    if (!result.ok) {
-      setStatus("error");
-      setError(result.error);
-      return;
-    }
+    setStatus("analyzing");
+    setReport(nextReport);
 
+    const wait = canAnimate() ? 1600 : 0;
+    const [, result] = await Promise.all([
+      new Promise((resolve) => setTimeout(resolve, wait)),
+      submitFarmDiagnostic(parsed.data, nextReport),
+    ]);
+
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(nextReport));
     setStatus("success");
-    track("raiox_complete", { ponds: parsed.data.ponds, cycleTracking: parsed.data.cycleTracking });
+    track("raiox_complete", {
+      ponds: parsed.data.ponds,
+      cycleTracking: parsed.data.cycleTracking,
+      difficulty: parsed.data.difficulty,
+      id: nextReport.id,
+      score: nextReport.maturity.score,
+    });
+
+    if (!result.ok) {
+      setError(result.error);
+    }
+  };
+
+  const reset = () => {
+    sessionStorage.removeItem(STORAGE_KEY);
+    setReport(null);
+    setStatus("idle");
+    setStep(0);
+    setError("");
+    setForm(INITIAL);
   };
 
   return (
     <section id="raio-x" className="tf-section">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px tf-horizon" />
-      <div className="tf-container relative max-w-2xl">
+      <div className="tf-container relative max-w-3xl">
         <Reveal>
           <h2 className="tf-headline">{COPY.diagnostic.headline}</h2>
           <p className="tf-sub mt-4">{COPY.diagnostic.subheadline}</p>
@@ -85,9 +134,19 @@ export function FarmDiagnostic() {
 
         <Reveal variant="scale" className="mt-7">
           <div className="tf-card p-4 md:p-6">
-            {status === "success" ? (
-              <SuccessState />
-            ) : (
+            {status === "analyzing" && report ? <AnalyzingState report={report} /> : null}
+            {status === "success" && report ? (
+              <>
+                {error ? (
+                  <p className="mb-4 text-sm text-status-warning">
+                    Diagnóstico pronto. Não foi possível registrar agora — siga pelo WhatsApp.
+                  </p>
+                ) : null}
+                <DiagnosticResult report={report} onReset={reset} />
+              </>
+            ) : null}
+
+            {status === "idle" || status === "submitting" || status === "error" ? (
               <>
                 <div className="mb-5 flex items-center justify-between gap-4">
                   <p className="text-xs uppercase tracking-[0.14em] text-text-tertiary">
@@ -116,6 +175,7 @@ export function FarmDiagnostic() {
                     onSelect={(value) =>
                       nextFromChoice({ cycleTracking: value as DiagnosticPayload["cycleTracking"] }, 2)
                     }
+                    onBack={() => setStep(0)}
                   />
                 ) : null}
 
@@ -127,6 +187,7 @@ export function FarmDiagnostic() {
                     onSelect={(value) =>
                       nextFromChoice({ difficulty: value as DiagnosticPayload["difficulty"] }, 3)
                     }
+                    onBack={() => setStep(1)}
                   />
                 ) : null}
 
@@ -172,17 +233,35 @@ export function FarmDiagnostic() {
                     />
                     {error ? <p className="text-sm text-status-error">{error}</p> : null}
                     <Button type="submit" loading={status === "submitting"}>
-                      {status === "submitting" ? "Enviando…" : COPY.diagnostic.cta}
+                      {COPY.diagnostic.cta}
                       <IconArrow />
                     </Button>
+                    <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>
+                      Voltar
+                    </button>
                   </form>
                 ) : null}
               </>
-            )}
+            ) : null}
           </div>
         </Reveal>
       </div>
     </section>
+  );
+}
+
+function AnalyzingState({ report }: { report: DiagnosticReport }) {
+  return (
+    <div className="py-8" role="status" aria-live="polite">
+      <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-brand-primary">Lendo a operação</p>
+      <h3 className="mt-3 font-display text-2xl font-semibold">Montando o Raio-X de {report.farmName}…</h3>
+      <ul className="raiox-scan mt-6 space-y-3 text-sm text-text-secondary">
+        <li>Escala · {report.ponds} viveiros</li>
+        <li>Fonte · {report.cycleTracking}</li>
+        <li>Pressão · {report.difficulty}</li>
+        <li>Cruzando captura, conexão e decisão</li>
+      </ul>
+    </div>
   );
 }
 
@@ -191,11 +270,13 @@ function ChoiceStep({
   options,
   value,
   onSelect,
+  onBack,
 }: {
   title: string;
   options: string[];
   value: string;
   onSelect: (value: string) => void;
+  onBack?: () => void;
 }) {
   return (
     <div>
@@ -213,6 +294,11 @@ function ChoiceStep({
           </button>
         ))}
       </div>
+      {onBack ? (
+        <button type="button" className="btn btn-ghost mt-4" onClick={onBack}>
+          Voltar
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -247,23 +333,10 @@ function Field({
           type={type}
           inputMode={inputMode}
           autoComplete={autoComplete}
+          required={type !== "email"}
           onChange={(event) => onChange(event.target.value)}
         />
       </span>
     </label>
-  );
-}
-
-function SuccessState() {
-  return (
-    <div className="py-6 text-center">
-      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
-        <IconCheck className="h-7 w-7" />
-      </div>
-      <h3 className="font-display text-2xl font-semibold">Diagnóstico recebido.</h3>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-text-secondary">
-        Nosso time vai usar essas respostas para entender o momento da sua operação e continuar a conversa.
-      </p>
-    </div>
   );
 }

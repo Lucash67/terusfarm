@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { DiagnosticReport } from "./raiox";
+
 export const pondOptions = ["1–5", "6–20", "21–50", "+50"] as const;
 export const cycleOptions = ["ERP", "Planilha", "BI", "Outro"] as const;
 export const difficultyOptions = [
@@ -34,7 +36,7 @@ export const diagnosticSchema = z.object({
 
 export type DiagnosticPayload = z.infer<typeof diagnosticSchema>;
 
-export type DiagnosticResult =
+export type DiagnosticSubmitResult =
   | { ok: true }
   | { ok: false; error: string };
 
@@ -43,15 +45,17 @@ export type DiagnosticResult =
  */
 export async function submitFarmDiagnostic(
   payload: DiagnosticPayload,
-): Promise<DiagnosticResult> {
+  report?: DiagnosticReport,
+): Promise<DiagnosticSubmitResult> {
   if (process.env.NODE_ENV !== "production") {
     console.info("[raio-x] payload", payload);
+    if (report) console.info("[raio-x] report", report.id, report.archetype.title, report.maturity.score);
   }
 
   const endpoint = process.env.NEXT_PUBLIC_DIAGNOSTIC_ENDPOINT;
 
   if (!endpoint) {
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await new Promise((resolve) => setTimeout(resolve, 400));
     return { ok: true };
   }
 
@@ -63,6 +67,16 @@ export async function submitFarmDiagnostic(
         source: "terus-farm-landing",
         event: "Festival do Camarão · Aracati 2026",
         ...payload,
+        report: report
+          ? {
+              id: report.id,
+              archetype: report.archetype.title,
+              score: report.maturity.score,
+              band: report.maturity.label,
+              askQuestion: report.askQuestion,
+              thisWeek: report.thisWeek,
+            }
+          : undefined,
       }),
     });
 

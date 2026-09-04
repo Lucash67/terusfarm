@@ -641,6 +641,31 @@
     background: linear-gradient(90deg, var(--brand-secondary), var(--brand-primary));
     transition: width 320ms var(--ease-premium);
   }
+
+  .raiox-scan li {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: tf-enter 520ms var(--ease-premium) both;
+    padding-left: 1rem;
+    position: relative;
+  }
+
+  .raiox-scan li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--brand-primary);
+    box-shadow: var(--glow-sm);
+  }
+
+  .raiox-scan li:nth-child(1) { animation-delay: 80ms; }
+  .raiox-scan li:nth-child(2) { animation-delay: 220ms; }
+  .raiox-scan li:nth-child(3) { animation-delay: 360ms; }
+  .raiox-scan li:nth-child(4) { animation-delay: 500ms; }
 }
 
 @layer utilities {
@@ -750,7 +775,8 @@
   .ask-core::before,
   .ask-core::after,
   .flow-line::after,
-  .tf-card-sweep::after {
+  .tf-card-sweep::after,
+  .raiox-scan li {
     animation: none !important;
     transition: none !important;
     opacity: 1;
