@@ -153,7 +153,8 @@ export const DEMO_COCKPIT = {
  * Desative com `showOperationStats: false`.
  */
 export const AQUAFARM_STATS = {
-  showOperationStats: true,
+  /** Desligue com `NEXT_PUBLIC_SHOW_AQUAFARM_STATS=false` até autorização comercial. */
+  showOperationStats: process.env.NEXT_PUBLIC_SHOW_AQUAFARM_STATS !== "false",
   items: [
     { value: "120 ha", label: "Área produtiva" },
     { value: "24", label: "Viveiros em operação" },
@@ -169,10 +170,10 @@ export const AQUAFARM_STATS = {
  */
 /** Fotos reais da Aquafarm — portadas de `Terus Farm Project/src/assets/public/`. */
 export const AQUAFARM_ASSETS = {
-  heroAerial: "/aquafarm/hero-aerial.png",
-  caseWide: "/aquafarm/case-wide.png",
-  caseDetail1: "/aquafarm/case-detail-1.png",
-  caseDetail2: "/aquafarm/case-detail-2.png",
+  heroAerial: "/aquafarm/hero-aerial.webp",
+  caseWide: "/aquafarm/case-wide.webp",
+  caseDetail1: "/aquafarm/case-detail-1.webp",
+  caseDetail2: "/aquafarm/case-detail-2.webp",
   logo: "/aquafarm/logo.png",
   mark: "/aquafarm/mark.png",
 } as const;

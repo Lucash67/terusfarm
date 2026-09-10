@@ -67,12 +67,7 @@ export async function submitFarmDiagnostic(input: DiagnosticSubmitInput): Promis
     });
   }
 
-  const endpoint = process.env.NEXT_PUBLIC_DIAGNOSTIC_ENDPOINT;
-
-  if (!endpoint) {
-    await new Promise((resolve) => setTimeout(resolve, input.intent === "complete" ? 400 : 0));
-    return { ok: true };
-  }
+  const endpoint = process.env.NEXT_PUBLIC_DIAGNOSTIC_ENDPOINT || "/api/diagnostic";
 
   try {
     const response = await fetch(endpoint, {

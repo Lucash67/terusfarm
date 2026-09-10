@@ -46,11 +46,20 @@ export const metadata: Metadata = {
     siteName: SITE.name,
     locale: "pt_BR",
     type: "website",
+    images: [
+      {
+        url: "/og/share.png",
+        width: 1200,
+        height: 630,
+        alt: "Terus Farm — vista aérea de viveiros de carcinicultura",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE.title,
     description: SITE.description,
+    images: ["/og/share.png"],
   },
   robots: {
     index: true,

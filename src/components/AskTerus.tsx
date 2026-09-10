@@ -129,7 +129,7 @@ export function AskTerus() {
               ) : null}
             </div>
 
-            <div className="mt-5">
+            <div className="mt-5 pb-2 md:pb-0">
               <Button
                 href="#raio-x"
                 onClick={() => track("ask_terus_cta_click")}

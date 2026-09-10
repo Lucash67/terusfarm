@@ -226,11 +226,23 @@ export function FarmDiagnostic() {
 
         {status === "success" && report && commercial ? (
           <div className="mt-7">
-            {error ? (
-              <p className="mb-4 text-sm text-status-warning">
-                Diagnóstico pronto. Não foi possível registrar agora — siga pelo WhatsApp.
+            <div
+              className={`mb-5 rounded-2xl border px-4 py-3 ${
+                error
+                  ? "border-status-warning/30 bg-status-warning/10"
+                  : "border-brand-primary/25 bg-brand-primary/8"
+              }`}
+            >
+              <p className="text-sm font-medium text-text-primary">
+                {error
+                  ? "Seu Raio-X está pronto, mas não registramos no sistema agora."
+                  : "Seu Raio-X está pronto."}
               </p>
-            ) : null}
+              <p className="mt-1 text-sm text-text-secondary">
+                No evento, o caminho mais rápido é enviar o diagnóstico pelo WhatsApp abaixo — nossa equipe
+                retorna com contexto da sua operação.
+              </p>
+            </div>
             <DiagnosticResult
               report={report}
               onReset={reset}
