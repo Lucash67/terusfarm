@@ -42,14 +42,14 @@ export function AquafarmCase() {
               <CasePhoto
                 src={AQUAFARM_ASSETS.caseDetail1}
                 fallbackTone="day"
-                alt="Viveiros da Aquafarm em outro ângulo da operação"
+                alt="Panorama aéreo dos viveiros da Aquafarm"
                 sizes="(max-width: 768px) 50vw, 28vw"
                 className="case-thumb aspect-[4/3]"
               />
               <CasePhoto
                 src={AQUAFARM_ASSETS.caseDetail2}
                 fallbackTone="dusk"
-                alt="Operação da Aquafarm vista dos viveiros"
+                alt="Detalhe aéreo dos viveiros inseridos na paisagem"
                 sizes="(max-width: 768px) 50vw, 28vw"
                 className="case-thumb case-thumb--late aspect-[4/3]"
               />
@@ -127,7 +127,7 @@ function MainShot() {
           src={AQUAFARM_ASSETS.heroAerial}
           fallbackSrc={AQUAFARM_ASSETS.caseWide}
           fallbackTone="aerial"
-          alt="Vista aérea dos viveiros da Aquafarm"
+          alt="Vista aérea ampla da fazenda Aquafarm, com rio e mangue ao entorno"
           sizes="(max-width: 768px) 100vw, 56vw"
           className="h-full w-full"
         />

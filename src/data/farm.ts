@@ -133,7 +133,7 @@ export const COPY = {
  * Não apresentar como resultado real, case ou benchmark.
  */
 export const DEMO_COCKPIT = {
-  production: { label: "Produção", value: 208.7, suffix: " t", delta: "+8,6%", tone: "up" as const },
+  production: { label: "Produção", value: 1256.8, suffix: " t", delta: "+8,6%", tone: "up" as const },
   ponds: { label: "Viveiros", value: 24, detail: "19 ativos" },
   cycles: { label: "Ciclos", value: 18, detail: "6 colhendo" },
   fca: { label: "FCA", value: 1.42, delta: "−6,2%", tone: "up" as const },
@@ -167,15 +167,28 @@ export const AQUAFARM_STATS = {
  * Coloque os arquivos em public/aquafarm/ com estes nomes.
  * Se o arquivo não existir, o case usa um still fotográfico — nunca o mapa abstrato.
  */
+/** Fotos reais da Aquafarm — portadas de `Terus Farm Project/src/assets/public/`. */
 export const AQUAFARM_ASSETS = {
-  heroAerial: "/aquafarm/hero-aerial.webp",
-  caseWide: "/aquafarm/case-wide.webp",
-  caseDetail1: "/aquafarm/case-detail-1.webp",
-  caseDetail2: "/aquafarm/case-detail-2.webp",
+  heroAerial: "/aquafarm/hero-aerial.png",
+  caseWide: "/aquafarm/case-wide.png",
+  caseDetail1: "/aquafarm/case-detail-1.png",
+  caseDetail2: "/aquafarm/case-detail-2.png",
   logo: "/aquafarm/logo.png",
   mark: "/aquafarm/mark.png",
 } as const;
 
+export const HERO_IMAGE = {
+  src: AQUAFARM_ASSETS.heroAerial,
+  alt: "Vista aérea dos viveiros de uma fazenda de carcinicultura",
+  markers: [
+    { id: "12", x: 27, y: 38, label: "Viveiro 12 · dados conectados" },
+    { id: "07", x: 48, y: 52, label: "Viveiro 07 · dados conectados" },
+    { id: "19", x: 68, y: 34, label: "Viveiro 19 · dados conectados" },
+    { id: "03", x: 58, y: 68, label: "Viveiro 03 · dados conectados" },
+  ],
+} as const;
+
+/** Marcadores do mapa abstrato (FinalCTA e fallback). */
 export const HERO_PONDS = [
   { id: "V-04", x: 18, y: 28, label: "Viveiro 04 · dados conectados" },
   { id: "V-09", x: 38, y: 42, label: "Viveiro 09 · dados conectados" },

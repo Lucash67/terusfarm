@@ -455,6 +455,81 @@
     transition: transform 420ms var(--ease-premium);
   }
 
+  .hero-photo {
+    position: relative;
+    overflow: hidden;
+    min-height: 280px;
+    height: clamp(280px, 58vw, 420px);
+    border-radius: 22px;
+    border: 1px solid rgb(var(--brand-primary-rgb) / 0.15);
+    box-shadow: var(--shadow-premium);
+    transform: perspective(1200px) rotateX(4deg);
+  }
+
+  .hero-photo__overlay {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgb(5 10 20 / 0.15) 0%, rgb(5 10 20 / 0.28) 48%, rgb(5 10 20 / 0.78) 100%),
+      radial-gradient(80% 70% at 50% 40%, transparent 30%, rgb(5 10 20 / 0.45) 100%);
+  }
+
+  .hero-photo__links {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero-photo__links path {
+    fill: none;
+    stroke: rgb(110 182 255 / 0.45);
+    stroke-width: 0.35;
+  }
+
+  .hero-marker {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    transform: translate(-50%, -50%);
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .hero-marker__core {
+    display: block;
+    width: 10px;
+    height: 10px;
+    margin: 9px auto 0;
+    border-radius: 50%;
+    background: var(--brand-primary);
+    box-shadow: 0 0 0 6px rgb(var(--brand-primary-rgb) / 0.16);
+    transition: box-shadow 320ms var(--ease-premium);
+  }
+
+  .hero-marker--on .hero-marker__core,
+  .hero-scene--active .hero-marker__core {
+    box-shadow: 0 0 0 8px rgb(var(--brand-primary-rgb) / 0.22);
+  }
+
+  .hero-marker__tip {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: 6px 9px;
+    border-radius: 8px;
+    background: rgb(6 12 22 / 0.94);
+    border: 1px solid rgb(255 255 255 / 0.12);
+    color: var(--text-primary);
+    font-size: 11px;
+  }
+
   .cockpit {
     border-radius: 20px;
     overflow: hidden;
@@ -1026,5 +1101,9 @@
 
   .case-main__media {
     transform: none !important;
+  }
+
+  .hero-photo {
+    transform: none;
   }
 }
